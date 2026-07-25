@@ -83,9 +83,16 @@ class Rng {
   Scalar uniform(Scalar lo, Scalar hi) { return lo + (hi - lo) * uniform(); }
 
   // Marsaglia polar method. Chosen over Box-Muller because it avoids the
-  // library sin/cos, whose last-bit results are not guaranteed identical
-  // across platforms. Only sqrt and log are used, and both are correctly
-  // rounded under IEEE 754 in practice on the platforms we target.
+  // library sin/cos.
+  //
+  // Portability caveat, stated honestly. This reduces the libm surface but does
+  // not eliminate it. std::sqrt IS correctly rounded and bit-identical
+  // everywhere, because IEEE 754 requires it. std::log is NOT: neither glibc's
+  // nor MSVC's implementation is correctly rounded, and they disagree in the
+  // last bits. So `uniform()` is bit-portable across platforms (it uses only
+  // integer operations and one multiply) but `normal()` is bit-portable only
+  // within a platform. Golden fixtures that must compare across Linux and
+  // Windows have to avoid the normal path, or accept a tolerance.
   Scalar normal() {
     if (hasSpare_) {
       hasSpare_ = false;

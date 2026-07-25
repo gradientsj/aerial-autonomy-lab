@@ -77,18 +77,18 @@ world. Cost is path length in metres, plus or minus a 95% confidence interval.
 
 | map | RRT | RRT\* | Informed RRT\* | paired RRT − RRT\* |
 | --- | --- | --- | --- | --- |
-| empty | 61.35 ± 1.12 | 57.52 ± 0.64 | 57.19 ± 0.83 | +3.83 ± 0.73 (t = 10.3) |
-| forest, sparse | 61.63 ± 1.10 | 58.63 ± 0.83 | 57.34 ± 0.65 | +3.00 ± 0.62 (t = 9.6) |
-| forest, dense | 66.58 ± 1.48 | 62.60 ± 1.06 | 63.15 ± 1.32 | +3.98 ± 0.88 (t = 8.9) |
-| wall with window | 39.15 ± 1.02 | 35.22 ± 0.48 | 32.05 ± 0.32 | +3.93 ± 0.94 (t = 8.2) |
+| empty | 61.35 ± 1.12 | 57.52 ± 0.64 | **57.19 ± 0.83** | +3.83 ± 0.73 (t = 10.3) |
+| forest, sparse | 62.73 ± 1.26 | 59.61 ± 0.93 | **58.93 ± 1.15** | +3.11 ± 0.62 (t = 9.8) |
+| forest, dense | 70.23 ± 2.39 | **66.38 ± 1.44** | 66.39 ± 2.04 | +3.86 ± 1.31 (t = 5.8) |
+| wall with window | 38.82 ± 0.83 | 35.19 ± 0.50 | **31.97 ± 0.32** | +3.63 ± 0.62 (t = 11.5) |
 
 Rewiring beats plain RRT everywhere, significantly. Informed sampling is a large
 win on the window map, where the informed ellipsoid collapses tightly around a
-forced detour, and **no better than plain RRT\* on the dense forest**, where the
-confidence intervals overlap and the point estimate is slightly worse. That
-negative result is reported rather than buried: when the first solution is
-already close to the straight-line lower bound, the informed set barely shrinks
-and the extra sampling machinery only adds overhead.
+forced detour, and buys **nothing at all on the dense forest**, where the two
+means differ by 0.01 m while informed sampling spends 26% more planning time
+(62.4 ms against 49.5 ms). That negative result is reported rather than buried:
+when the first solution is already close to the straight-line lower bound, the
+informed set barely shrinks and the extra sampling machinery only adds overhead.
 
 ## Testing
 
@@ -119,3 +119,23 @@ Two bugs this suite caught, both of which produce code that looks correct:
 ## Licence
 
 MIT.
+
+## Architecture note: two worlds
+
+Ground truth and the agent's belief are separate, and the boundary is enforced
+by the type system rather than by discipline. Most projects claiming
+"GPS-denied" quietly hand the planner the true pose, and every number after that
+is theatre.
+
+- **Ground truth**, owned by the simulator. An analytic signed distance field
+  over a CSG tree of primitives. One function is simultaneously the collision
+  oracle, the depth-sensor model and the true clearance field, so the sensor and
+  the collision checker cannot disagree, because they are the same function.
+- **Belief**, owned by the agent. A rolling ego-centric voxel grid of log-odds
+  occupancy plus the exact ESDF in `src/collision/`, built only from noisy depth
+  projected through the *estimated* pose. It drifts and it ghosts, and the
+  planner sees this and nothing else.
+
+The planner and the mission layer accept only an `EstimatedState` carrying its
+covariance. Ground truth is reachable through a debug-only accessor, and CI
+fails the build if any results-generating script calls it.

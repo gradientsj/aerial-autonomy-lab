@@ -163,8 +163,19 @@ void Esdf::build() {
   edt3d(inside, nx_, ny_, nz_);
 
   for (std::size_t i = 0; i < n; ++i) {
-    const Scalar d_out = std::sqrt(outside[i]) * res_;
-    const Scalar d_in = std::sqrt(inside[i]) * res_;
+    // The transform measures centre-to-centre distance to the nearest voxel of
+    // the opposite class. What the planner needs is distance to the obstacle
+    // SURFACE. An obstacle voxel is a cube of side res_ centred on its sample
+    // point, so the free voxel immediately beside it is 0.5 * res_ from the
+    // surface but a full res_ from the centre.
+    //
+    // Without this correction the field is optimistic by half a voxel
+    // everywhere, which at res_ = 0.5 m is 0.25 m of clearance the vehicle does
+    // not actually have. Subtracting half a voxel is exact for a flat face and
+    // conservative elsewhere, which is the correct direction to err.
+    const Scalar half = 0.5;
+    const Scalar d_out = (std::sqrt(outside[i]) - half) * res_;
+    const Scalar d_in = (std::sqrt(inside[i]) - half) * res_;
     // Signed convention: positive in free space, negative inside obstacles.
     dist_[i] = occ_[i] ? -d_in : d_out;
   }
@@ -247,7 +258,8 @@ Scalar Esdf::bruteForceDistanceAt(int i, int j, int k) const {
   // Matches build()'s behaviour when a source set is empty, so the two agree
   // even in the degenerate all-free or all-occupied cases.
   if (!std::isfinite(best)) best = kBig;
-  const Scalar d = std::sqrt(best) * res_;
+  // Same half-voxel surface correction as build(), so the two agree.
+  const Scalar d = (std::sqrt(best) - 0.5) * res_;
   return self_occ ? -d : d;
 }
 

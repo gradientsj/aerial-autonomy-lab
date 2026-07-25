@@ -64,6 +64,33 @@ TEST(Esdf, EmptyGridDoesNotProduceNaN) {
       }
 }
 
+TEST(Esdf, MatchesTheAnalyticDistanceToAHalfSpace) {
+  // Regression test for a half-voxel bias.
+  //
+  // A distance transform measures centre-to-centre distance to the nearest
+  // voxel of the opposite class, but the planner needs distance to the obstacle
+  // SURFACE. An occupied voxel is a cube of side res centred on its sample
+  // point, so the free voxel beside it sits half a voxel from the surface and a
+  // whole voxel from the centre. Reporting the latter inflates every clearance
+  // by half a voxel, which at res = 0.5 m is 0.25 m the vehicle does not have.
+  //
+  // A half space is the one geometry where the correct answer is available in
+  // closed form at every voxel, so the agreement here is exact rather than
+  // approximate.
+  const Scalar res = 0.5;
+  const int wall_max_i = 5;  // voxels 0..5 occupied, surface at i = 5.5
+  Esdf f(16, 6, 6, res, Vec3{0, 0, 0});
+  for (int k = 0; k < 6; ++k)
+    for (int j = 0; j < 6; ++j)
+      for (int i = 0; i <= wall_max_i; ++i) f.setOccupied(i, j, k, true);
+  f.build();
+
+  for (int i = 0; i < 16; ++i) {
+    const Scalar truth = (Scalar(i) - (wall_max_i + 0.5)) * res;
+    EXPECT_NEAR(f.distanceAt(i, 3, 3), truth, 1e-12) << "at voxel i = " << i;
+  }
+}
+
 TEST(Esdf, SignedInsideObstacles) {
   Esdf f(20, 20, 20, 0.5, Vec3{0, 0, 0});
   f.addSphere(Vec3{5, 5, 5}, 2.0);
