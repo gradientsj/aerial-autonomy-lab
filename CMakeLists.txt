@@ -43,3 +43,6 @@ if(AAL_BUILD_TESTS)
   include(GoogleTest)
   gtest_discover_tests(aal_tests)
 endif()
+
+add_executable(bench_planners bench/bench_planners.cpp)
+target_link_libraries(bench_planners PRIVATE aal_core)
