@@ -48,7 +48,8 @@ results-generating script calls it.
 | Belief map | Voxel log-odds + exact EDT | The agent's map should be discretised and wrong in realistic ways. That is the point. |
 | Generative assets | **GAN cut.** Diffusion over SDF grids for benchmark scene generation | With no rasteriser, generated appearance has no consumer, and for line-of-sight occlusion a cylinder is a cylinder. Mode collapse in a GAN is silent and catastrophic for a benchmark generator, where diffusion fails visibly. Adversarial patrolling units remain, as mission logic rather than a generative problem. |
 | GPU budget | Learned RRT* sampler and the scene generator | Redirected from the cut GAN work. |
-| CUDA targets | Multi-arch fatbin, plus a tested CPU fallback | The Windows test machine has an NVIDIA GPU of a different generation. The full suite must pass under `AAL_DISABLE_CUDA=1`. |
+| CUDA targets | Fatbin over sm_89, sm_90, sm_120, plus a tested CPU fallback | Real target hardware is an RTX 4090 (Ada), the H100 training node (Hopper) and an RTX 5090 (consumer Blackwell). sm_120 needs CUDA 12.8+. The suite must pass under `-DAAL_DISABLE_CUDA=ON`. |
+| Photorealistic rendering | On the 4090 / 5090 tier only, never in the training loop | Those cards have RT cores, display engines and NVENC. The H100 has none of the three. Pixels matter to the perception front end and not to the planner, so they are produced where they are cheap. |
 
 ## Milestones
 
@@ -78,3 +79,23 @@ No real-flight validation in version one. TUM-VI gives real inertial data and
 real feature tracks against published baselines, which is the credibility that
 actually transfers. This is stated on the page rather than left for a reviewer
 to notice.
+
+## Hardware tiers
+
+| tier | hardware | RT cores | NVENC | role |
+| --- | --- | --- | --- | --- |
+| Training | 2x H100 80GB (sm_90) | no | no | Parallel physics, geometric sensing, planner benchmarks, all training. Headless, no graphics userspace installed. |
+| Workstation | RTX 4090 24GB (sm_89) | yes | yes | Photorealistic perception imagery, Isaac Sim or Unreal, PhysX cross-check, video encoding, interactive debugging. |
+| Workstation | RTX 5090 32GB (sm_120) | yes | yes | Same, plus the newest-architecture test target. Requires CUDA 12.8+, driver 570+, and a PyTorch cu128 build. |
+
+What this changes relative to the original plan: the perception front end was
+going to synthesise observations at the disparity and feature-track level
+because no machine in the project could produce pixels. That constraint is gone.
+Pixel-level rendering now happens on the workstation tier, which makes learned
+depth, learned feature detection and sim-to-real domain randomisation reachable
+rather than aspirational.
+
+What it does not change: the training loop stays engine-free. An engine in the
+inner loop would cost determinism, throughput and portability, and would tie
+every published number to a specific Omniverse or Unreal build. The engine is a
+data source and a validation cross-check, not the simulator.

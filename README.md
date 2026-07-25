@@ -45,13 +45,31 @@ every state and input is an algebraic function of a smooth position trajectory.
 Planning geometrically and recovering the dynamics through flatness is exact,
 not a simplification.
 
-**No game engine.** The development machine is a headless 2xH100 node. Hopper
-has no RT cores and no display engine, and the box carries no EGL, Vulkan or
-OpenGL userspace at all, so Isaac Sim, Unreal and Unity camera output are all
-unavailable. This turns out not to matter: depth and range sensing are
+**Two tiers of hardware, and only one of them can draw.** The training node is
+headless 2xH100. Hopper has no RT cores, no display engine and no video encoder,
+and the box carries no EGL, Vulkan or OpenGL userspace at all, so Isaac Sim,
+Unreal and Unity camera output cannot run there at any price. That is fine for
+the part of the problem that lives there, because depth and range sensing are
 raycasting problems rather than rasterisation problems, and a hand-written CUDA
-sphere-tracer renders 1920x1080 in 0.025 ms on one H100. Visualisation lives in
-the browser, where the algorithms are the thing worth showing anyway.
+sphere tracer renders 1920x1080 in 0.025 ms on one H100. Thousands of parallel
+environments share one kernel launch.
+
+Rendering is not gone from the project, it is relocated. The workstation tier is
+an RTX 4090 and an RTX 5090, both of which have RT cores, display engines and
+NVENC. Photorealistic imagery, which the planner does not want but the
+perception front end genuinely does, is produced there. So the split is
+
+- **H100 node**, headless: massively parallel physics, geometric sensing,
+  planner benchmarks, and all network training. Deterministic and engine-free.
+- **4090 / 5090 workstations**: photorealistic image generation for the
+  perception stack, hardware ray tracing, PhysX cross-checks, and video encoding
+  for the write-up.
+
+CUDA therefore ships as a fatbin over sm_89 (Ada), sm_90 (Hopper) and sm_120
+(consumer Blackwell), with a CPU fallback the full suite must pass under.
+Note that sm_120 needs CUDA 12.8 or newer, and that PyTorch on a 5090 must be a
+cu128 or later build. Earlier wheels contain no sm_120 kernels and fail at
+runtime with "no kernel image is available for execution on the device".
 
 ## Build
 

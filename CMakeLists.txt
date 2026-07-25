@@ -10,6 +10,43 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(AAL_BUILD_TESTS "Build the C++ test suite" ON)
+option(AAL_DISABLE_CUDA "Force the CPU backend even if a CUDA compiler exists" OFF)
+
+# CUDA is optional and auto-detected. Every kernel has a CPU fallback selected at
+# runtime, and the full test suite must pass with AAL_DISABLE_CUDA=ON, because
+# not every machine that reads this repository has a GPU.
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER AND NOT AAL_DISABLE_CUDA)
+  enable_language(CUDA)
+  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+  # Real target hardware for this project, so build a fatbin rather than pinning
+  # one architecture.
+  #   89  Ada Lovelace   RTX 4090
+  #   90  Hopper         H100, the training box
+  #   120 Blackwell      RTX 5090, consumer Blackwell and NOT the same as 100,
+  #                      which is datacenter Blackwell
+  # sm_120 needs CUDA 12.8 or newer, so drop it on older toolkits rather than
+  # failing the configure step.
+  set(AAL_CUDA_ARCHS 89 90)
+  if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
+    list(APPEND AAL_CUDA_ARCHS 120)
+  else()
+    message(STATUS "CUDA ${CMAKE_CUDA_COMPILER_VERSION} predates sm_120, RTX 50 series excluded")
+  endif()
+  set(CMAKE_CUDA_ARCHITECTURES ${AAL_CUDA_ARCHS})
+  message(STATUS "CUDA enabled, architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+
+  # Match the host FP policy. --fmad=false is the CUDA equivalent of
+  # -ffp-contract=off, and without it the GPU and CPU paths disagree in the low
+  # bits, which makes the CPU fallback useless as a reference.
+  add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--fmad=false>)
+  add_compile_definitions(AAL_WITH_CUDA=1)
+else()
+  message(STATUS "CUDA disabled, building the CPU backend only")
+endif()
 
 # Floating point determinism.
 #
