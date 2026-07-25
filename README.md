@@ -104,7 +104,7 @@ optimum in an empty map, to be bitwise reproducible for a fixed seed, and to
 never return a path that intersects an obstacle. The claim that rewiring helps
 is a paired t-test over 30 seeds, not a single run.
 
-Two bugs this suite caught, both of which produce code that looks correct:
+Three bugs this suite caught, all of which produce code that looks correct:
 
 1. Seeding the distance transform with infinity makes the parabola intersection
    evaluate `INF - INF = NaN` on any scanline containing no obstacle.
@@ -115,10 +115,21 @@ Two bugs this suite caught, both of which produce code that looks correct:
    diagonal. The full stride steps over violations. Strides are now divided by
    √3, and `edgeFree` canonicalises endpoint order so it is a true function of
    the unordered pair.
+3. The distance field was optimistic by half a voxel everywhere, because the
+   transform returns centre-to-centre distance while the planner needs distance
+   to the obstacle *surface*. At 0.5 m voxels that is 0.25 m of clearance the
+   vehicle does not have. The exactness test in item 1's suite could not catch
+   it, because the brute-force reference shared the same convention and was
+   consistently wrong in the same direction. Catching it needed a test against
+   a geometry with a closed-form answer, which is why there is now one against
+   an analytic half space.
 
-## Licence
-
-MIT.
+A note on what "reproducible" means here. Uniform draws are bit-portable across
+platforms, since they use only integer operations and one multiply. Normal draws
+are not, because Marsaglia's polar method needs a logarithm and neither glibc's
+nor MSVC's `log` is correctly rounded. The same applies to the connection
+radius. Reproducibility is bitwise within a platform and tolerance-based across
+platforms, and the fixtures are written to match.
 
 ## Architecture note: two worlds
 
@@ -139,3 +150,7 @@ is theatre.
 The planner and the mission layer accept only an `EstimatedState` carrying its
 covariance. Ground truth is reachable through a debug-only accessor, and CI
 fails the build if any results-generating script calls it.
+
+## Licence
+
+MIT.
