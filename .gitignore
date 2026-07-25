@@ -1,0 +1,37 @@
+# Build
+build/
+build-*/
+*.o
+*.so
+*.a
+compile_commands.json
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venvs/
+.pytest_cache/
+.hypothesis/
+
+# Data and artifacts
+runs/
+checkpoints/
+*.ckpt
+*.pt
+episodes/
+*.mp4
+*.webm
+
+# Benchmark outputs that are regenerated, keep the committed reference set
+bench/figures/*.png
+!bench/figures/.gitkeep
+bench/results/*.json
+!bench/results/reference/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
